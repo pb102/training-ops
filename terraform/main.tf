@@ -53,7 +53,7 @@ resource "aws_route_table" "public" {
 resource "aws_route_table_association" "public" {
   subnet_id      = "${aws_subnet.public.id}"
   route_table_id = "${aws_route_table.public.id}"
-  
+
   lifecycle { create_before_destroy = true }
 }
 
@@ -88,36 +88,6 @@ resource "aws_security_group" "mongodb" {
   }
 }
 
-//MongoDB Instance
-resource "aws_instance" "mongodb" {
-  ami           = "ami-cf5beba4"
-  instance_type = "t2.micro"
-  key_name      = "${module.ssh_keys.key_name}"
-  subnet_id     = "${aws_subnet.public.id}"
-
-  vpc_security_group_ids = ["${aws_security_group.mongodb.id}"]
-
-  tags { Name = "${var.name}-mongodb" }
-  lifecycle { create_before_destroy = true }
-
-  provisioner "remote-exec" {
-    connection {
-      user     = "ubuntu"
-      key_file = "${module.ssh_keys.private_key_path}"
-    }
-
-    inline = [
-      "sudo apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10",
-      "sudo echo \"deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen\" | sudo tee -a /etc/apt/sources.list.d/10gen.list",
-      "sudo wget -P /tmp https://apt.puppetlabs.com/puppetlabs-release-precise.deb",
-      "sudo dpkg -i /tmp/puppetlabs-release-precise.deb",
-      "sudo apt-get -y update",
-      "sudo apt-get -y install puppet vim git",
-      "sudo puppet module install jay-letschat",
-      "sudo puppet apply -e \"class { 'letschat::db': user => 'lcadmin', pass => 'somepass', database_name => 'letschat', }\""
-    ]
-  }
-}
 
 //Node.js Security Group
 resource "aws_security_group" "nodejs" {
@@ -155,40 +125,4 @@ resource "aws_security_group" "nodejs" {
     to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-//Node.js Instance
-resource "aws_instance" "nodejs" {
-  ami             = "ami-cf5beba4"
-  instance_type   = "t2.micro"
-  key_name        = "${module.ssh_keys.key_name}"
-  subnet_id       = "${aws_subnet.public.id}"
-
-  vpc_security_group_ids = ["${aws_security_group.nodejs.id}"]
-
-  tags { Name = "${var.name}-nodejs" }
-  lifecycle { create_before_destroy = true }
-  depends_on = ["aws_instance.mongodb"]
-
-  provisioner "remote-exec" {
-    connection {
-      user     = "ubuntu"
-      key_file = "${module.ssh_keys.private_key_path}"
-    }
-
-    inline = [
-      "sudo apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10",
-      "sudo echo \"deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen\" | sudo tee -a /etc/apt/sources.list.d/10gen.list",
-      "sudo wget -P /tmp https://apt.puppetlabs.com/puppetlabs-release-precise.deb",
-      "sudo dpkg -i /tmp/puppetlabs-release-precise.deb",
-      "sudo apt-get -y update",
-      "sudo apt-get -y install puppet vim git",
-      "sudo puppet module install jay-letschat",
-      "sudo puppet apply -e \"class { 'letschat::app': dbuser => 'lcadmin', dbpass => 'somepass', dbname => 'letschat', dbhost => '${aws_instance.mongodb.private_dns}', }\""
-    ]
-  }
-}
-
-output "letschat_address" {
-  value = "http://${aws_instance.nodejs.public_ip}:5000"
 }
