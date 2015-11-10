@@ -5,6 +5,21 @@ provider "aws" {
   region     = "us-east-1"
 }
 
+// Artifacts
+resource "atlas_artifact" "mongodb" {
+  name = "${var.atlas_username}/mongodb"
+  type = "aws.ami"
+
+  lifecycle { create_before_destroy = true }
+}
+
+resource "atlas_artifact" "nodejs" {
+  name = "${var.atlas_username}/nodejs"
+  type = "aws.ami"
+
+  lifecycle { create_before_destroy = true }
+}
+
 // SSH Keys
 module "ssh_keys" {
   source = "./ssh_keys"
@@ -88,6 +103,18 @@ resource "aws_security_group" "mongodb" {
   }
 }
 
+//MongoDB Instance
+resource "aws_instance" "mongodb" {
+  ami           = "${atlas_artifact.mongodb.metadata_full.region-us-east-1}"
+  instance_type = "t2.micro"
+  key_name      = "${module.ssh_keys.key_name}"
+  subnet_id     = "${aws_subnet.public.id}"
+
+  vpc_security_group_ids = ["${aws_security_group.mongodb.id}"]
+
+  tags { Name = "${var.name}-mongodb" }
+  lifecycle { create_before_destroy = true }
+}
 
 //Node.js Security Group
 resource "aws_security_group" "nodejs" {
@@ -125,4 +152,33 @@ resource "aws_security_group" "nodejs" {
     to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+//Node.js Instance
+resource "aws_instance" "nodejs" {
+  ami             = "${atlas_artifact.nodejs.metadata_full.region-us-east-1}"
+  instance_type   = "t2.micro"
+  key_name        = "${module.ssh_keys.key_name}"
+  subnet_id       = "${aws_subnet.public.id}"
+
+  vpc_security_group_ids = ["${aws_security_group.nodejs.id}"]
+
+  tags { Name = "${var.name}-nodejs" }
+  lifecycle { create_before_destroy = true }
+  depends_on = ["aws_instance.mongodb"]
+
+  provisioner "remote-exec" {
+    connection {
+      user     = "ubuntu"
+      key_file = "${module.ssh_keys.private_key_path}"
+    }
+
+    inline = [
+      "sudo puppet apply -e \"class { 'letschat::app': dbuser => 'lcadmin', dbpass => 'somepass', dbname => 'letschat', dbhost => '${aws_instance.mongodb.private_dns}', }\""
+    ]
+  }
+}
+
+output "letschat_address" {
+  value = "http://${aws_instance.nodejs.public_ip}:5000"
 }
