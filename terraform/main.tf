@@ -21,7 +21,7 @@ resource "atlas_artifact" "nodejs" {
 }
 
 resource "atlas_artifact" "consul" {
-  name = "${var.atlas_username}/consul"
+  name = "kfishner/consul"
   type = "aws.ami"
 
   lifecycle { create_before_destroy = true }
