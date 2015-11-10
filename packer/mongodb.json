@@ -35,7 +35,7 @@
         "artifact": "{{user `atlas_username`}}/mongodb",
         "artifact_type": "aws.ami",
         "metadata": {
-          "created_at": "{{timestamp}}"
+          "created_at": "{{timestamp}}-2"
         }
       }
     ]
